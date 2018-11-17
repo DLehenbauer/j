@@ -1,0 +1,22 @@
+{
+  "name": "@prague/json-sink",
+  "version": "0.0.1",
+  "main": "dist/main.bundle.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "webpack --env=\"production\"",
+    "dev": "webpack --env=\"development\" --watch"
+  },
+  "devDependencies": {
+    "@types/benchmark": "^1.0.31",
+    "@types/node": "^10.12.0",
+    "benchmark": "^2.1.4",
+    "clean-webpack-plugin": "^1.0.0",
+    "ts-loader": "^5.3.0",
+    "ts-node": "^7.0.1",
+    "typescript": "^3.1.3",
+    "webpack": "^4.25.1",
+    "webpack-cli": "^3.1.2",
+    "webpack-merge": "^4.1.4"
+  }
+}
