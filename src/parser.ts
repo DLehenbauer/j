@@ -55,12 +55,72 @@
     true
 */
 
+import { Scanner } from "./scanner";
+
+/*
+    json_parse_state.js
+    2016-05-02
+
+    Public Domain.
+
+    NO WARRANTY EXPRESSED OR IMPLIED. USE AT YOUR OWN RISK.
+
+    This file creates a json_parse function.
+
+        json_parse(text, reviver)
+            This method parses a JSON text to produce an object or array.
+            It can throw a SyntaxError exception.
+
+            The optional reviver parameter is a function that can filter and
+            transform the results. It receives each of the keys and values,
+            and its return value is used instead of the original value.
+            If it returns what it received, then the structure is not modified.
+            If it returns undefined then the member is deleted.
+
+            Example:
+
+            // Parse the text. Values that look like ISO date strings will
+            // be converted to Date objects.
+
+            myData = json_parse(text, function (key, value) {
+                var a;
+                if (typeof value === "string") {
+                    a =
+/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}(?:\.\d*)?)Z$/.exec(value);
+                    if (a) {
+                        return new Date(Date.UTC(+a[1], +a[2] - 1, +a[3], +a[4],
+                            +a[5], +a[6]));
+                    }
+                }
+                return value;
+            });
+
+    This is a reference implementation. You are free to copy, modify, or
+    redistribute.
+
+    This code should be minified before deployment.
+    See http://javascript.crockford.com/jsmin.html
+
+    USE YOUR OWN COPY. IT IS EXTREMELY UNWISE TO LOAD CODE FROM SERVERS YOU DO
+    NOT CONTROL.
+*/
+
+/*jslint for */
+
+/*property
+    acomma, avalue, b, call, colon, container, exec, f, false, firstavalue,
+    firstokey, fromCharCode, go, hasOwnProperty, key, length, n, null, ocomma,
+    okey, ovalue, pop, prototype, push, r, replace, slice, state, t, test,
+    true
+*/
+
 export var json_parse = (function () {
     "use strict";
 
 // This function creates a JSON parse function that uses a state machine rather
 // than the dangerous eval function to parse a JSON text.
 
+    const scanner = new Scanner();
     var state;      // The state of the parser, one of
                     // 'go'         The starting state
                     // 'ok'         The final, accepting state
@@ -294,13 +354,8 @@ export var json_parse = (function () {
         });
     }
 
-    return function (source, reviver?) {
-
-// A regular expression is used to extract tokens from the JSON text.
-// The extraction process is cautious.
-
-        var result;
-        var tx = /^[\u0020\t\n\r]*(?:([,:\[\]{}]|true|false|null)|(-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)|"((?:[^\r\n\t\\\"]|\\(?:["\\\/trnfb]|u[0-9a-fA-F]{4}))*)")/;
+    return function (source: string, reviver?) {
+        scanner.init(source);
 
 // Set the starting state.
 
@@ -313,63 +368,42 @@ export var json_parse = (function () {
 
 // If any error occurs, we will catch it and ultimately throw a syntax error.
 
-        try {
-
 // For each token...
-
-            while (true) {
-                result = tx.exec(source);
-                if (!result) {
-                    break;
-                }
-
-// result is the result array from matching the tokenizing regular expression.
-//  result[0] contains everything that matched, including any initial whitespace.
-//  result[1] contains any punctuation that was matched, or true, false, or null.
-//  result[2] contains a matched number, still in string form.
-//  result[3] contains a matched string, without quotes but with escapement.
-
-                if (result[1]) {
-
-// Token: Execute the action for this state and token.
-
-                    action[result[1]][state]();
-
-                } else if (result[2]) {
-
-// Number token: Convert the number string into a number value and execute
-// the action for this state and number.
-
-                    value = +result[2];
-                    number[state]();
-                } else {
-
-// String token: Replace the escapement sequences and execute the action for
-// this state and string.
-
-                    value = debackslashify(result[3]);
-                    string[state]();
-                }
-
-// Remove the token from the string. The loop will continue as long as there
-// are tokens. This is a slow process, but it allows the use of ^ matching,
-// which assures that no illegal tokens slip through.
-
-                source = source.slice(result[0].length);
+        while (true) {
+            scanner.skipWhitespace();
+            if (scanner.eof) {
+                break;
             }
 
-// If we find a state/token combination that is illegal, then the action will
-// cause an error. We handle the error by simply changing the state.
+            const maybePunctuation = scanner.matchPunctuation();
+            if (maybePunctuation) {
+                action[String.fromCharCode(maybePunctuation)][state]();
+                continue;
+            }
 
-        } catch (e) {
-            state = e;
+            const maybeLiteral = scanner.matchLiteral();
+            if (maybeLiteral !== undefined) {
+                action["" + maybeLiteral][state]();
+                continue;
+            }
+
+            const maybeNumber = scanner.matchNumber();
+            if (maybeNumber) {
+                value = +(source.slice(maybeNumber[0], maybeNumber[1]));
+                number[state]();
+                continue;
+            }
+
+            const [stringStart, stringEnd] = scanner.matchString();
+            value = debackslashify(source.slice(stringStart, stringEnd));
+            string[state]();
         }
 
-// The parsing is finished. If we are not in the final "ok" state, or if the
-// remaining source contains anything except whitespace, then we did not have
-//a well-formed JSON text.
+        // The parsing is finished. If we are not in the final "ok" state, or if the
+        // remaining source contains anything except whitespace, then we did not have
+        //a well-formed JSON text.
 
-        if (state !== "ok" || (/[^\u0020\t\n\r]/.test(source))) {
+        if (state !== "ok") {
             throw (state instanceof SyntaxError)
                 ? state
                 : new SyntaxError("JSON");

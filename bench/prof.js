@@ -26,7 +26,7 @@ var NopSink = /** @class */ (function () {
 }());
 
 const sink = new NopSink();
-for (let i = 0; i < 1000; i++) {
-    parser.state_parser(json_deltas, sink);
+for (let i = 0; i < 200; i++) {
+    parser.my_parser(json_deltas, sink);
 }
 sink.stats();

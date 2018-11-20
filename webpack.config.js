@@ -41,5 +41,5 @@ module.exports = env => {
         }
     }, isProduction
         ? require("./webpack.prod")
-        : require("./webpack.prod"));
+        : require("./webpack.dev"));
 };
