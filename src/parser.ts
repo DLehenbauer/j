@@ -394,7 +394,8 @@ export var json_parse = (function () {
                 continue;
             }
 
-            const [stringStart, stringEnd] = scanner.matchString();
+            const stringStart = scanner.index + 1;          // +1 to exclude leading quote
+            const stringEnd = scanner.matchString() - 1;    // -1 to exclude trailing quote
             value = debackslashify(source.slice(stringStart, stringEnd));
             string[state]();
         }

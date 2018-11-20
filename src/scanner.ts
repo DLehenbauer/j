@@ -133,14 +133,12 @@ export class Scanner {
         }
 
         this.index++;
-        const start = this.index;                   // Exclude quotes in returned range.
-
         while (!this.eof) {
             let ch = this.next();
             this.index++;
 
             if (ch === Char.doubleQuote) {
-                return [start, this.index - 1];     // Exclude quotes in returned range.
+                return this.index;
             }
 
             if (ch === Char.backslash) {
