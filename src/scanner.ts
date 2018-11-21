@@ -132,9 +132,7 @@ export class Scanner {
             this.unexpectedToken(this.next());
         }
 
-        this.index++;
-        const start = this.index;
-        
+        this.index++;      
         let hasEscaped = false;
 
         while (!this.eof) {
@@ -143,7 +141,7 @@ export class Scanner {
 
             switch (ch) {
                 case Char.doubleQuote:
-                    return { start, end: this.index - 1, hasEscaped };
+                    return hasEscaped ? -this.index : this.index;
                 case Char.backslash:
                     // The scanner must skip escaped quotes (i.e '\"') to prevent them from terminating the string.
                     // Legal escape codes are \", \\, \/, \t, \r, \n, \f, \b, and \udddd.

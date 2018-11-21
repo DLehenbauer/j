@@ -1,60 +1,3 @@
-/*
-    json_parse_state.js
-    2016-05-02
-
-    Public Domain.
-
-    NO WARRANTY EXPRESSED OR IMPLIED. USE AT YOUR OWN RISK.
-
-    This file creates a json_parse function.
-
-        json_parse(text, reviver)
-            This method parses a JSON text to produce an object or array.
-            It can throw a SyntaxError exception.
-
-            The optional reviver parameter is a function that can filter and
-            transform the results. It receives each of the keys and values,
-            and its return value is used instead of the original value.
-            If it returns what it received, then the structure is not modified.
-            If it returns undefined then the member is deleted.
-
-            Example:
-
-            // Parse the text. Values that look like ISO date strings will
-            // be converted to Date objects.
-
-            myData = json_parse(text, function (key, value) {
-                var a;
-                if (typeof value === "string") {
-                    a =
-/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2}(?:\.\d*)?)Z$/.exec(value);
-                    if (a) {
-                        return new Date(Date.UTC(+a[1], +a[2] - 1, +a[3], +a[4],
-                            +a[5], +a[6]));
-                    }
-                }
-                return value;
-            });
-
-    This is a reference implementation. You are free to copy, modify, or
-    redistribute.
-
-    This code should be minified before deployment.
-    See http://javascript.crockford.com/jsmin.html
-
-    USE YOUR OWN COPY. IT IS EXTREMELY UNWISE TO LOAD CODE FROM SERVERS YOU DO
-    NOT CONTROL.
-*/
-
-/*jslint for */
-
-/*property
-    acomma, avalue, b, call, colon, container, exec, f, false, firstavalue,
-    firstokey, fromCharCode, go, hasOwnProperty, key, length, n, null, ocomma,
-    okey, ovalue, pop, prototype, push, r, replace, slice, state, t, test,
-    true
-*/
-
 import { Scanner } from "./scanner";
 import { Char } from "./char"
 
@@ -115,6 +58,19 @@ import { Char } from "./char"
     true
 */
 
+const enum ParserState {
+    go,             // The starting state
+    ok,             // The final, accepting state
+    firstokey,      // Ready for the first key of the object or the closing of an empty object
+    okey,           // Ready for the next key of the object
+    colon,          // Ready for the colon
+    ovalue,         // Ready for the value half of a key/value pair
+    ocomma,         // Ready for a comma or closing }
+    firstavalue,    // Ready for the first value of an array or an empty array
+    avalue,         // Ready for the next value of an array
+    acomma,         // Ready for a comma or closing ]
+}
+
 export var json_parse = (function () {
     "use strict";
 
@@ -122,19 +78,7 @@ export var json_parse = (function () {
 // than the dangerous eval function to parse a JSON text.
 
     const scanner = new Scanner();
-    var state;      // The state of the parser, one of
-                    // 'go'         The starting state
-                    // 'ok'         The final, accepting state
-                    // 'firstokey'  Ready for the first key of the object or
-                    //              the closing of an empty object
-                    // 'okey'       Ready for the next key of the object
-                    // 'colon'      Ready for the colon
-                    // 'ovalue'     Ready for the value half of a key/value pair
-                    // 'ocomma'     Ready for a comma or closing }
-                    // 'firstavalue' Ready for the first value of an array or
-                    //              an empty array
-                    // 'avalue'     Ready for the next value of an array
-                    // 'acomma'     Ready for a comma or closing ]
+    let state: ParserState;
     var stack;      // The stack, for controlling nesting.
     var container;  // The current container object or array
     var key;        // The current key
@@ -148,42 +92,6 @@ export var json_parse = (function () {
         "r": "\r",
         "f": "\f",
         "b": "\b"
-    };
-    var string = {   // The actions for string tokens
-        go: function () {
-            state = "ok";
-        },
-        firstokey: function () {
-            key = value;
-            state = "colon";
-        },
-        okey: function () {
-            key = value;
-            state = "colon";
-        },
-        ovalue: function () {
-            state = "ocomma";
-        },
-        firstavalue: function () {
-            state = "acomma";
-        },
-        avalue: function () {
-            state = "acomma";
-        }
-    };
-    var number = {   // The actions for number tokens
-        go: function () {
-            state = "ok";
-        },
-        ovalue: function () {
-            state = "ocomma";
-        },
-        firstavalue: function () {
-            state = "acomma";
-        },
-        avalue: function () {
-            state = "acomma";
-        }
     };
 
     function debackslashify(text: string) {
@@ -199,28 +107,28 @@ export var json_parse = (function () {
         switch (scanner.next()) {
             case Char.openBrace: {
                 switch (state) {
-                    case "go": {
-                        stack.push({state: "ok"});
+                    case ParserState.go: {
+                        stack.push({state: ParserState.ok});
                         container = {};
-                        state = "firstokey";
+                        state = ParserState.firstokey;
                         return true;
                     }
-                    case "ovalue": {
-                        stack.push({container: container, state: "ocomma", key: key});
+                    case ParserState.ovalue: {
+                        stack.push({container: container, state: ParserState.ocomma, key: key});
                         container = {};
-                        state = "firstokey";
+                        state = ParserState.firstokey;
                         return true;
                     }
-                    case "firstavalue": {
-                        stack.push({container: container, state: "acomma"});
+                    case ParserState.firstavalue: {
+                        stack.push({container: container, state: ParserState.acomma});
                         container = {};
-                        state = "firstokey";
+                        state = ParserState.firstokey;
                         return true;
                     }
-                    case "avalue": {
-                        stack.push({container: container, state: "acomma"});
+                    case ParserState.avalue: {
+                        stack.push({container: container, state: ParserState.acomma});
                         container = {};
-                        state = "firstokey";
+                        state = ParserState.firstokey;
                         return true;
                     }
                 }
@@ -228,7 +136,7 @@ export var json_parse = (function () {
             }
             case Char.closeBrace: {
                 switch (state) {
-                    case "firstokey": {
+                    case ParserState.firstokey: {
                         var pop = stack.pop();
                         value = container;
                         container = pop.container;
@@ -236,7 +144,7 @@ export var json_parse = (function () {
                         state = pop.state;
                         return true;
                     }
-                    case "ocomma": {
+                    case ParserState.ocomma: {
                         var pop = stack.pop();
                         container[key] = value;
                         value = container;
@@ -250,28 +158,28 @@ export var json_parse = (function () {
             }
             case Char.openBracket: {
                 switch (state) {
-                    case "go": {
-                        stack.push({state: "ok"});
+                    case ParserState.go: {
+                        stack.push({state: ParserState.ok});
                         container = [];
-                        state = "firstavalue";
+                        state = ParserState.firstavalue;
                         return true;
                     }
-                    case "ovalue": {
-                        stack.push({container: container, state: "ocomma", key: key});
+                    case ParserState.ovalue: {
+                        stack.push({container: container, state: ParserState.ocomma, key: key});
                         container = [];
-                        state = "firstavalue";
+                        state = ParserState.firstavalue;
                         return true;
                     }
-                    case "firstavalue": {
-                        stack.push({container: container, state: "acomma"});
+                    case ParserState.firstavalue: {
+                        stack.push({container: container, state: ParserState.acomma});
                         container = [];
-                        state = "firstavalue";
+                        state = ParserState.firstavalue;
                         return true;
                     }
-                    case "avalue": {
-                        stack.push({container: container, state: "acomma"});
+                    case ParserState.avalue: {
+                        stack.push({container: container, state: ParserState.acomma});
                         container = [];
-                        state = "firstavalue";
+                        state = ParserState.firstavalue;
                         return true;
                     }
                 }
@@ -279,7 +187,7 @@ export var json_parse = (function () {
             }
             case Char.closeBracket: {
                 switch (state) {
-                    case "firstavalue": {
+                    case ParserState.firstavalue: {
                         var pop = stack.pop();
                         value = container;
                         container = pop.container;
@@ -287,7 +195,7 @@ export var json_parse = (function () {
                         state = pop.state;
                         return true;
                     }
-                    case "acomma": {
+                    case ParserState.acomma: {
                         var pop = stack.pop();
                         container.push(value);
                         value = container;
@@ -301,11 +209,11 @@ export var json_parse = (function () {
             }
             case Char.colon: {
                 switch (state) {
-                    case "colon": {
+                    case ParserState.colon: {
                         if (Object.hasOwnProperty.call(container, key)) {
                             throw new SyntaxError("Duplicate key '" + key + "\"");
                         }
-                        state = "ovalue";
+                        state = ParserState.ovalue;
                         return true;
                     }
                 }
@@ -313,14 +221,14 @@ export var json_parse = (function () {
             }
             case Char.comma: {
                 switch (state) {
-                    case "ocomma": {
+                    case ParserState.ocomma: {
                         container[key] = value;
-                        state = "okey";
+                        state = ParserState.okey;
                         return true;
                     }
-                    case "acomma": {
+                    case ParserState.acomma: {
                         container.push(value);
-                        state = "avalue";
+                        state = ParserState.avalue;
                         return true;
                     }
                 }
@@ -335,7 +243,7 @@ export var json_parse = (function () {
 
 // Set the starting state.
 
-        state = "go";
+        state = ParserState.go;
 
 // The stack records the container, key, and state for each object or array
 // that contains another object or array while processing nested structures.
@@ -360,25 +268,25 @@ export var json_parse = (function () {
             if (maybeLiteral !== undefined) {
                 switch (maybeLiteral) {
                     case true: {
-                        switch (state) {
-                            case "go": {
+                        switch (state as ParserState) {
+                            case ParserState.go: {
                                 value = true;
-                                state = "ok";
+                                state = ParserState.ok;
                                 break;
                             }
-                            case "ovalue": {
+                            case ParserState.ovalue: {
                                 value = true;
-                                state = "ocomma";
+                                state = ParserState.ocomma;
                                 break;
                             }
-                            case "firstavalue": {
+                            case ParserState.firstavalue: {
                                 value = true;
-                                state = "acomma";
+                                state = ParserState.acomma;
                                 break;
                             }
-                            case "avalue": {
+                            case ParserState.avalue: {
                                 value = true;
-                                state = "acomma";
+                                state = ParserState.acomma;
                                 break;
                             }
                             default: throw Error();
@@ -386,25 +294,25 @@ export var json_parse = (function () {
                         break;
                     }
                     case false: {
-                        switch (state) {
-                            case "go": {
+                        switch (state as ParserState) {
+                            case ParserState.go: {
                                 value = false;
-                                state = "ok";
+                                state = ParserState.ok;
                                 break;
                             }
-                            case "ovalue": {
+                            case ParserState.ovalue: {
                                 value = false;
-                                state = "ocomma";
+                                state = ParserState.ocomma;
                                 break;
                             }
-                            case "firstavalue": {
+                            case ParserState.firstavalue: {
                                 value = false;
-                                state = "acomma";
+                                state = ParserState.acomma;
                                 break;
                             }
-                            case "avalue": {
+                            case ParserState.avalue: {
                                 value = false;
-                                state = "acomma";
+                                state = ParserState.acomma;
                                 break;
                             }
                             default: throw Error();
@@ -412,25 +320,25 @@ export var json_parse = (function () {
                         break;
                     }
                     case null: {
-                        switch (state) {
-                            case "go": {
+                        switch (state as ParserState) {
+                            case ParserState.go: {
                                 value = null;
-                                state = "ok";
+                                state = ParserState.ok;
                                 break;
                             }
-                            case "ovalue": {
+                            case ParserState.ovalue: {
                                 value = null;
-                                state = "ocomma";
+                                state = ParserState.ocomma;
                                 break;
                             }
-                            case "firstavalue": {
+                            case ParserState.firstavalue: {
                                 value = null;
-                                state = "acomma";
+                                state = ParserState.acomma;
                                 break;
                             }
-                            case "avalue": {
+                            case ParserState.avalue: {
                                 value = null;
-                                state = "acomma";
+                                state = ParserState.acomma;
                                 break;
                             }
                             default: throw Error();
@@ -444,26 +352,77 @@ export var json_parse = (function () {
             const maybeNumber = scanner.matchNumber();
             if (maybeNumber) {
                 value = +(source.slice(maybeNumber[0], maybeNumber[1]));
-                number[state]();
+                switch (state as ParserState) {
+                    case ParserState.go: {
+                        state = ParserState.ok;
+                        break;
+                    }
+                    case ParserState.ovalue: {
+                        state = ParserState.ocomma;
+                        break;
+                    }
+                    case ParserState.firstavalue: {
+                        state = ParserState.acomma;
+                        break;
+                    }
+                    case ParserState.avalue: {
+                        state = ParserState.acomma;
+                        break;
+                    }
+                    default: throw new Error();
+                }
                 continue;
             }
 
-            const { start, end, hasEscaped } = scanner.matchString();
-            value = source.slice(start, end);
+            const start = scanner.index;
+            let end = scanner.matchString();
+            
+            const hasEscaped = end < 0;
+            if (hasEscaped) {
+                end = -end;
+            }
+            value = source.slice(start + 1, end - 1);
             if (hasEscaped) {
                 value = debackslashify(value);
             }
-            string[state]();
+
+            switch (state as ParserState) {
+                case ParserState.go: {
+                    state = ParserState.ok;
+                    break;
+                }
+                case ParserState.firstokey: {
+                    key = value;
+                    state = ParserState.colon;
+                    break;
+                }
+                case ParserState.okey: {
+                    key = value;
+                    state = ParserState.colon;
+                    break;
+                }
+                case ParserState.ovalue: {
+                    state = ParserState.ocomma;
+                    break;
+                }
+                case ParserState.firstavalue: {
+                    state = ParserState.acomma;
+                    break;
+                }
+                case ParserState.avalue: {
+                    state = ParserState.acomma;
+                    break;
+                }
+                default: throw Error();
+            }
         }
 
-        // The parsing is finished. If we are not in the final "ok" state, or if the
+        // The parsing is finished. If we are not in the final ParserState.ok state, or if the
         // remaining source contains anything except whitespace, then we did not have
         //a well-formed JSON text.
 
-        if (state !== "ok") {
-            throw (state instanceof SyntaxError)
-                ? state
-                : new SyntaxError("JSON");
+        if (state !== ParserState.ok) {
+            throw new SyntaxError("JSON");
         }
 
 // If there is a reviver function, we recursively walk the new structure,
