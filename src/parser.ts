@@ -186,163 +186,6 @@ export var json_parse = (function () {
         }
     };
 
-    // The action table describes the behavior of the machine. It contains an
-    // object for each token. Each object contains a method that is called when
-    // a token is matched in a state. An object will lack a method for illegal
-    // states.
-    const action = new Map<number | string, {}>([
-        [Char.openBrace, {
-            go: function () {
-                stack.push({state: "ok"});
-                container = {};
-                state = "firstokey";
-            },
-            ovalue: function () {
-                stack.push({container: container, state: "ocomma", key: key});
-                container = {};
-                state = "firstokey";
-            },
-            firstavalue: function () {
-                stack.push({container: container, state: "acomma"});
-                container = {};
-                state = "firstokey";
-            },
-            avalue: function () {
-                stack.push({container: container, state: "acomma"});
-                container = {};
-                state = "firstokey";
-            }
-        }],
-        [Char.closeBrace, {
-            firstokey: function () {
-                var pop = stack.pop();
-                value = container;
-                container = pop.container;
-                key = pop.key;
-                state = pop.state;
-            },
-            ocomma: function () {
-                var pop = stack.pop();
-                container[key] = value;
-                value = container;
-                container = pop.container;
-                key = pop.key;
-                state = pop.state;
-            }
-        }],
-        [Char.openBracket, {
-            go: function () {
-                stack.push({state: "ok"});
-                container = [];
-                state = "firstavalue";
-            },
-            ovalue: function () {
-                stack.push({container: container, state: "ocomma", key: key});
-                container = [];
-                state = "firstavalue";
-            },
-            firstavalue: function () {
-                stack.push({container: container, state: "acomma"});
-                container = [];
-                state = "firstavalue";
-            },
-            avalue: function () {
-                stack.push({container: container, state: "acomma"});
-                container = [];
-                state = "firstavalue";
-            }
-        }],
-        [Char.closeBracket, {
-            firstavalue: function () {
-                var pop = stack.pop();
-                value = container;
-                container = pop.container;
-                key = pop.key;
-                state = pop.state;
-            },
-            acomma: function () {
-                var pop = stack.pop();
-                container.push(value);
-                value = container;
-                container = pop.container;
-                key = pop.key;
-                state = pop.state;
-            }
-        }],
-        [Char.colon, {
-            colon: function () {
-                if (Object.hasOwnProperty.call(container, key)) {
-                    throw new SyntaxError("Duplicate key '" + key + "\"");
-                }
-                state = "ovalue";
-            }
-        }],
-        [Char.comma, {
-            ocomma: function () {
-                container[key] = value;
-                state = "okey";
-            },
-            acomma: function () {
-                container.push(value);
-                state = "avalue";
-            }
-        }],
-        ["true", {
-            go: function () {
-                value = true;
-                state = "ok";
-            },
-            ovalue: function () {
-                value = true;
-                state = "ocomma";
-            },
-            firstavalue: function () {
-                value = true;
-                state = "acomma";
-            },
-            avalue: function () {
-                value = true;
-                state = "acomma";
-            }
-        }],
-        ["false", {
-            go: function () {
-                value = false;
-                state = "ok";
-            },
-            ovalue: function () {
-                value = false;
-                state = "ocomma";
-            },
-            firstavalue: function () {
-                value = false;
-                state = "acomma";
-            },
-            avalue: function () {
-                value = false;
-                state = "acomma";
-            }
-        }],
-        ["null", {
-            go: function () {
-                value = null;
-                state = "ok";
-            },
-            ovalue: function () {
-                value = null;
-                state = "ocomma";
-            },
-            firstavalue: function () {
-                value = null;
-                state = "acomma";
-            },
-            avalue: function () {
-                value = null;
-                state = "acomma";
-            }
-        }]
-    ]);
-
     function debackslashify(text: string) {
         // Remove and replace any backslash escapement.
         return text.replace(/\\(?:u(.{4})|([^u]))/g, function (ignore, b, c) {
@@ -350,6 +193,141 @@ export var json_parse = (function () {
                 ? String.fromCharCode(parseInt(b, 16))
                 : escapes[c];
         });
+    }
+
+    function parsePunctuation() {
+        switch (scanner.next()) {
+            case Char.openBrace: {
+                switch (state) {
+                    case "go": {
+                        stack.push({state: "ok"});
+                        container = {};
+                        state = "firstokey";
+                        return true;
+                    }
+                    case "ovalue": {
+                        stack.push({container: container, state: "ocomma", key: key});
+                        container = {};
+                        state = "firstokey";
+                        return true;
+                    }
+                    case "firstavalue": {
+                        stack.push({container: container, state: "acomma"});
+                        container = {};
+                        state = "firstokey";
+                        return true;
+                    }
+                    case "avalue": {
+                        stack.push({container: container, state: "acomma"});
+                        container = {};
+                        state = "firstokey";
+                        return true;
+                    }
+                }
+                throw new Error();
+            }
+            case Char.closeBrace: {
+                switch (state) {
+                    case "firstokey": {
+                        var pop = stack.pop();
+                        value = container;
+                        container = pop.container;
+                        key = pop.key;
+                        state = pop.state;
+                        return true;
+                    }
+                    case "ocomma": {
+                        var pop = stack.pop();
+                        container[key] = value;
+                        value = container;
+                        container = pop.container;
+                        key = pop.key;
+                        state = pop.state;
+                        return true;
+                    }
+                }
+                throw new Error();
+            }
+            case Char.openBracket: {
+                switch (state) {
+                    case "go": {
+                        stack.push({state: "ok"});
+                        container = [];
+                        state = "firstavalue";
+                        return true;
+                    }
+                    case "ovalue": {
+                        stack.push({container: container, state: "ocomma", key: key});
+                        container = [];
+                        state = "firstavalue";
+                        return true;
+                    }
+                    case "firstavalue": {
+                        stack.push({container: container, state: "acomma"});
+                        container = [];
+                        state = "firstavalue";
+                        return true;
+                    }
+                    case "avalue": {
+                        stack.push({container: container, state: "acomma"});
+                        container = [];
+                        state = "firstavalue";
+                        return true;
+                    }
+                }
+                throw new Error();
+            }
+            case Char.closeBracket: {
+                switch (state) {
+                    case "firstavalue": {
+                        var pop = stack.pop();
+                        value = container;
+                        container = pop.container;
+                        key = pop.key;
+                        state = pop.state;
+                        return true;
+                    }
+                    case "acomma": {
+                        var pop = stack.pop();
+                        container.push(value);
+                        value = container;
+                        container = pop.container;
+                        key = pop.key;
+                        state = pop.state;
+                        return true;
+                    }
+                }
+                throw new Error();
+            }
+            case Char.colon: {
+                switch (state) {
+                    case "colon": {
+                        if (Object.hasOwnProperty.call(container, key)) {
+                            throw new SyntaxError("Duplicate key '" + key + "\"");
+                        }
+                        state = "ovalue";
+                        return true;
+                    }
+                }
+                throw new Error();
+            }
+            case Char.comma: {
+                switch (state) {
+                    case "ocomma": {
+                        container[key] = value;
+                        state = "okey";
+                        return true;
+                    }
+                    case "acomma": {
+                        container.push(value);
+                        state = "avalue";
+                        return true;
+                    }
+                }
+                throw new Error();
+            }
+        }
+        return false;
     }
 
     return function (source: string, reviver?) {
@@ -373,16 +351,93 @@ export var json_parse = (function () {
                 break;
             }
 
-            const table = action.get(scanner.next());
-            if (table) {
+            if (parsePunctuation()) {
                 scanner.index++;
-                table[state]();
                 continue;
             }
 
             const maybeLiteral = scanner.matchLiteral();
             if (maybeLiteral !== undefined) {
-                action.get("" + maybeLiteral)[state]();
+                switch (maybeLiteral) {
+                    case true: {
+                        switch (state) {
+                            case "go": {
+                                value = true;
+                                state = "ok";
+                                break;
+                            }
+                            case "ovalue": {
+                                value = true;
+                                state = "ocomma";
+                                break;
+                            }
+                            case "firstavalue": {
+                                value = true;
+                                state = "acomma";
+                                break;
+                            }
+                            case "avalue": {
+                                value = true;
+                                state = "acomma";
+                                break;
+                            }
+                            default: throw Error();
+                        }
+                        break;
+                    }
+                    case false: {
+                        switch (state) {
+                            case "go": {
+                                value = false;
+                                state = "ok";
+                                break;
+                            }
+                            case "ovalue": {
+                                value = false;
+                                state = "ocomma";
+                                break;
+                            }
+                            case "firstavalue": {
+                                value = false;
+                                state = "acomma";
+                                break;
+                            }
+                            case "avalue": {
+                                value = false;
+                                state = "acomma";
+                                break;
+                            }
+                            default: throw Error();
+                        }
+                        break;
+                    }
+                    case null: {
+                        switch (state) {
+                            case "go": {
+                                value = null;
+                                state = "ok";
+                                break;
+                            }
+                            case "ovalue": {
+                                value = null;
+                                state = "ocomma";
+                                break;
+                            }
+                            case "firstavalue": {
+                                value = null;
+                                state = "acomma";
+                                break;
+                            }
+                            case "avalue": {
+                                value = null;
+                                state = "acomma";
+                                break;
+                            }
+                            default: throw Error();
+                        }
+                        break;
+                    }                    
+                }
                 continue;
             }
 
