@@ -14,7 +14,7 @@ export class Scanner {
         this.length = source.length;
     }
 
-    public next() { return this.nextAt(0); }
+    public next() { return this.source.charCodeAt(this.index); }
     public nextAt(offset: number) { return this.source.charCodeAt(this.index + offset); }
     public get eof() { return this.index >= this.length }
 
@@ -133,27 +133,40 @@ export class Scanner {
         }
 
         this.index++;
+        const start = this.index;
+        
+        let hasEscaped = false;
+
         while (!this.eof) {
             let ch = this.next();
             this.index++;
 
-            if (ch === Char.doubleQuote) {
-                return this.index;
-            }
+            switch (ch) {
+                case Char.doubleQuote:
+                    return { start, end: this.index - 1, hasEscaped };
+                case Char.backslash:
+                    // The scanner must skip escaped quotes (i.e '\"') to prevent them from terminating the string.
+                    // Legal escape codes are \", \\, \/, \t, \r, \n, \f, \b, and \udddd.
+                    hasEscaped = true;
+                    ch = this.next();
+                    this.index++;
 
-            if (ch === Char.backslash) {
-                ch = this.next();
-                this.index++;
-
-                if (escaped.has(ch)) {
-                    /* ok */
-                } else if (ch === Char.u && this.matchDecimalDigit() && this.matchDecimalDigit() && this.matchDecimalDigit() && this.matchDecimalDigit()) {
-                    /* ok */
-                } else {
-                    this.unexpectedToken(ch);
-                }
-            } else if (ch === Char.carriageReturn || ch === Char.lineFeed || ch === Char.tab) {
-                this.unexpectedToken(ch);
+                    // JSON is assumed to be valid:
+                    //
+                    // if (escaped.has(ch)) {
+                    //     /* ok */
+                    // } else if (ch === Char.u && this.matchDecimalDigit() && this.matchDecimalDigit() && this.matchDecimalDigit() && this.matchDecimalDigit()) {
+                    //     /* ok */
+                    // } else {
+                    //     this.unexpectedToken(ch);
+                    // }
+                    break;
+                // JSON is assumed to be valid:
+                //
+                // case Char.carriageReturn:
+                // case Char.lineFeed:
+                // case Char.tab:
+                //     this.unexpectedToken(ch);
             }
         }
     }

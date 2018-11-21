@@ -56,6 +56,7 @@
 */
 
 import { Scanner } from "./scanner";
+import { Char } from "./char"
 
 /*
     json_parse_state.js
@@ -184,14 +185,13 @@ export var json_parse = (function () {
             state = "acomma";
         }
     };
-    var action = {
 
-// The action table describes the behavior of the machine. It contains an
-// object for each token. Each object contains a method that is called when
-// a token is matched in a state. An object will lack a method for illegal
-// states.
-
-        "{": {
+    // The action table describes the behavior of the machine. It contains an
+    // object for each token. Each object contains a method that is called when
+    // a token is matched in a state. An object will lack a method for illegal
+    // states.
+    const action = new Map<number | string, {}>([
+        [Char.openBrace, {
             go: function () {
                 stack.push({state: "ok"});
                 container = {};
@@ -212,8 +212,8 @@ export var json_parse = (function () {
                 container = {};
                 state = "firstokey";
             }
-        },
-        "}": {
+        }],
+        [Char.closeBrace, {
             firstokey: function () {
                 var pop = stack.pop();
                 value = container;
@@ -229,8 +229,8 @@ export var json_parse = (function () {
                 key = pop.key;
                 state = pop.state;
             }
-        },
-        "[": {
+        }],
+        [Char.openBracket, {
             go: function () {
                 stack.push({state: "ok"});
                 container = [];
@@ -251,8 +251,8 @@ export var json_parse = (function () {
                 container = [];
                 state = "firstavalue";
             }
-        },
-        "]": {
+        }],
+        [Char.closeBracket, {
             firstavalue: function () {
                 var pop = stack.pop();
                 value = container;
@@ -268,16 +268,16 @@ export var json_parse = (function () {
                 key = pop.key;
                 state = pop.state;
             }
-        },
-        ":": {
+        }],
+        [Char.colon, {
             colon: function () {
                 if (Object.hasOwnProperty.call(container, key)) {
                     throw new SyntaxError("Duplicate key '" + key + "\"");
                 }
                 state = "ovalue";
             }
-        },
-        ",": {
+        }],
+        [Char.comma, {
             ocomma: function () {
                 container[key] = value;
                 state = "okey";
@@ -286,8 +286,8 @@ export var json_parse = (function () {
                 container.push(value);
                 state = "avalue";
             }
-        },
-        "true": {
+        }],
+        ["true", {
             go: function () {
                 value = true;
                 state = "ok";
@@ -304,8 +304,8 @@ export var json_parse = (function () {
                 value = true;
                 state = "acomma";
             }
-        },
-        "false": {
+        }],
+        ["false", {
             go: function () {
                 value = false;
                 state = "ok";
@@ -322,8 +322,8 @@ export var json_parse = (function () {
                 value = false;
                 state = "acomma";
             }
-        },
-        "null": {
+        }],
+        ["null", {
             go: function () {
                 value = null;
                 state = "ok";
@@ -340,13 +340,11 @@ export var json_parse = (function () {
                 value = null;
                 state = "acomma";
             }
-        }
-    };
+        }]
+    ]);
 
-    function debackslashify(text) {
-
-// Remove and replace any backslash escapement.
-
+    function debackslashify(text: string) {
+        // Remove and replace any backslash escapement.
         return text.replace(/\\(?:u(.{4})|([^u]))/g, function (ignore, b, c) {
             return b
                 ? String.fromCharCode(parseInt(b, 16))
@@ -375,15 +373,16 @@ export var json_parse = (function () {
                 break;
             }
 
-            const maybePunctuation = scanner.matchPunctuation();
-            if (maybePunctuation) {
-                action[String.fromCharCode(maybePunctuation)][state]();
+            const table = action.get(scanner.next());
+            if (table) {
+                scanner.index++;
+                table[state]();
                 continue;
             }
 
             const maybeLiteral = scanner.matchLiteral();
             if (maybeLiteral !== undefined) {
-                action["" + maybeLiteral][state]();
+                action.get("" + maybeLiteral)[state]();
                 continue;
             }
 
@@ -394,9 +393,11 @@ export var json_parse = (function () {
                 continue;
             }
 
-            const stringStart = scanner.index + 1;          // +1 to exclude leading quote
-            const stringEnd = scanner.matchString() - 1;    // -1 to exclude trailing quote
-            value = debackslashify(source.slice(stringStart, stringEnd));
+            const { start, end, hasEscaped } = scanner.matchString();
+            value = source.slice(start, end);
+            if (hasEscaped) {
+                value = debackslashify(value);
+            }
             string[state]();
         }
 
