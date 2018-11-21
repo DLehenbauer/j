@@ -71,6 +71,8 @@ const enum ParserState {
     acomma,         // Ready for a comma or closing ]
 }
 
+type StackFrame = { container?: [] | {}, state: ParserState, key?: string };
+
 export var json_parse = (function () {
     "use strict";
 
@@ -78,12 +80,12 @@ export var json_parse = (function () {
 // than the dangerous eval function to parse a JSON text.
 
     const scanner = new Scanner();
-    let state: ParserState;
-    var stack;      // The stack, for controlling nesting.
-    var container;  // The current container object or array
-    var key;        // The current key
-    var value;      // The current value
-    var escapes = { // Escapement translation table
+    let state: ParserState = ParserState.go;
+    const stack: StackFrame[] = [];             // The stack, for controlling nesting.
+    let container: any;                         // The current container object or array
+    let key: string | undefined;                // The current key
+    let value: any;                             // The current value
+    const escapes = {                           // Escapement translation table
         "\\": "\\",
         "\"": "\"",
         "/": "/",
@@ -99,7 +101,7 @@ export var json_parse = (function () {
         return text.replace(/\\(?:u(.{4})|([^u]))/g, function (ignore, b, c) {
             return b
                 ? String.fromCharCode(parseInt(b, 16))
-                : escapes[c];
+                : (escapes as any)[c];
         });
     }
 
@@ -137,7 +139,7 @@ export var json_parse = (function () {
             case Char.closeBrace: {
                 switch (state) {
                     case ParserState.firstokey: {
-                        var pop = stack.pop();
+                        var pop = stack.pop()!;
                         value = container;
                         container = pop.container;
                         key = pop.key;
@@ -145,8 +147,8 @@ export var json_parse = (function () {
                         return true;
                     }
                     case ParserState.ocomma: {
-                        var pop = stack.pop();
-                        container[key] = value;
+                        var pop = stack.pop()!;
+                        container[key!] = value;
                         value = container;
                         container = pop.container;
                         key = pop.key;
@@ -222,7 +224,7 @@ export var json_parse = (function () {
             case Char.comma: {
                 switch (state) {
                     case ParserState.ocomma: {
-                        container[key] = value;
+                        container[key!] = value;
                         state = ParserState.okey;
                         return true;
                     }
@@ -238,7 +240,7 @@ export var json_parse = (function () {
         return false;
     }
 
-    return function (source: string, reviver?) {
+    return function (source: string) {
         scanner.init(source);
 
 // Set the starting state.
@@ -248,7 +250,7 @@ export var json_parse = (function () {
 // The stack records the container, key, and state for each object or array
 // that contains another object or array while processing nested structures.
 
-        stack = [];
+        stack.length = 0;
 
 // If any error occurs, we will catch it and ultimately throw a syntax error.
 
@@ -431,25 +433,6 @@ export var json_parse = (function () {
 // value in an empty key. If there is not a reviver function, we simply return
 // that value.
 
-        return (typeof reviver === "function")
-            ? (function walk(holder, key) {
-                var k;
-                var v;
-                var val = holder[key];
-                if (val && typeof val === "object") {
-                    for (k in value) {
-                        if (Object.prototype.hasOwnProperty.call(val, k)) {
-                            v = walk(val, k);
-                            if (v !== undefined) {
-                                val[k] = v;
-                            } else {
-                                delete val[k];
-                            }
-                        }
-                    }
-                }
-                return reviver.call(holder, key, val);
-            }({"": value}, ""))
-            : value;
+        return value;
     };
 }());

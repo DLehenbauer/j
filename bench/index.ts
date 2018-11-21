@@ -1,40 +1,16 @@
 import * as Benchmark from "benchmark";
 import Suite = Benchmark.Suite;
 
-import { recursive_parser, eval_parser, state_parser, my_parser, ISink } from "..";
+import { my_parser } from "..";
 
 // const json_empty = "{}";
 const json_deltas = JSON.stringify(require("./test.json"));
-
-class NopSink implements ISink {
-    beginObject() {
-    }  
-
-    beginField(name: string) {
-    }
-
-    endField() {
-    }
-
-    endObject() {
-    }
-
-    beginArray() {
-    }
-
-    endArray() {
-    }
-
-    value(value: any) {
-    }
-}
 
 new Suite("suite")
     // .add("native-empty", () => JSON.parse(json_empty))
     // .add("crockford-empty", () => json_parse(json_empty))
     .add("native-deltas", () => JSON.parse(json_deltas))
-    .add("my-state-deltas", () => my_parser(json_deltas, new NopSink()))
-    .add("crockford-state-deltas", () => state_parser(json_deltas))
+    .add("my-state-deltas", () => my_parser(json_deltas))
     // .add("crockford-recursive-deltas", () => recursive_parser(json_deltas))
     // .add("crockford-eval-deltas", () => eval_parser(json_deltas))
     .on("cycle", event => { console.log(String(event.target)); })

@@ -1,12 +1,9 @@
 import { Char } from "./char";
 
-const punctuation   = new Set<number>([ Char.colon, Char.comma, Char.openBrace, Char.closeBrace, Char.openBracket, Char.closeBracket ]);
-const escaped       = new Set<number>([ Char.doubleQuote, Char.backslash, Char.slash, Char.t, Char.r, Char.n, Char.f, Char.b ]);
-
 export class Scanner {
-    public source: string;
-    public index: number;
-    private length: number;
+    public source = "";
+    public index = 0;
+    private length = 0;
 
     public init(source: string) {
         this.source = source;
@@ -59,17 +56,6 @@ export class Scanner {
         return undefined;
     }
 
-    public matchPunctuation() {
-        const ch = this.next();
-        
-        if (punctuation.has(ch)) {
-            this.index++;
-            return ch;
-        }
-
-        return 0;
-    }
-
     private isDecimalDigit(ch: number) {
         return Char._0 <= ch && ch <= Char._9;
     }
@@ -97,7 +83,7 @@ export class Scanner {
         return start !== this.index;
     }
 
-    public matchNumber(): [number, number] {
+    public matchNumber(): [number, number] | undefined {
         const start = this.index;
 
         if (this.next() === Char.minus) {
@@ -127,7 +113,7 @@ export class Scanner {
         return [start, this.index];
     }
 
-    public matchString() {
+    public matchString(): number {
         if (this.next() !== Char.doubleQuote) {
             this.unexpectedToken(this.next());
         }
@@ -167,5 +153,7 @@ export class Scanner {
                 //     this.unexpectedToken(ch);
             }
         }
+
+        throw new SyntaxError("Unexpected end of JSON input");
     }
 }
